@@ -1,16 +1,20 @@
 use aes::{
     Aes256,
-    cipher::BlockEncrypt, cipher::BlockDecrypt,
-    cipher::generic_array::GenericArray,
-    cipher::KeyInit,
-    cipher::generic_array::typenum::U32
+    cipher::{
+        BlockEncrypt, BlockDecrypt, KeyInit,
+        generic_array::{ 
+            GenericArray, typenum::U32, typenum::U16
+        }
+    }
 };
-
 use pbkdf2::{
-    Pbkdf2, password_hash::{SaltString, PasswordHasher}
+    Pbkdf2, password_hash::{
+        SaltString, PasswordHasher
+    }
 };
-
 use rand::rngs::OsRng;
+
+type Block = GenericArray<u8, U16>;
 
 pub struct DbEncryption {
     cipher: Aes256
@@ -24,10 +28,38 @@ impl DbEncryption {
         DbEncryption { cipher }
     }
 
-    pub fn encrypt(&self, data: &str) -> Vec<u8> {
-        let mut cipher_text: Vec<u8> = vec![];
-        convert_to_blocks();
-        cipher_text
+    pub fn encrypt(&self, data: &[u8]) -> Vec<u8> {
+        let mut ciphertext: Vec<u8> = vec![];
+        let b = [0u8; 16];
+        let mut block = GenericArray::clone_from_slice(&b);
+        let iter = data.iter();
+        let count = 0usize;
+        loop {
+            match iter.next() {
+                Some(byte) => {
+                    block[count] = *byte;
+                    if count == 15 {
+                        self.cipher.encrypt_block(&mut block);
+                        ciphertext.push(block.as_slice().try_into().expect("invalid length!"));
+                        block = GenericArray::clone_from_slice(&b);
+                        count = 0;
+                    } else {
+                        count += 1;
+                    }
+                },
+                None => break
+            };
+        }
+        if count != 0 {
+            self.cipher.encrypt_block(&mut block);
+            ciphertext.push(block.as_slice().try_into().expect("invalid length!"));
+        }
+        ciphertext
+    }
+
+    pub fn decrypt(&self, data: &[u8]) -> Vec<u8> {
+        let mut plaintext: Vec<u8> = vec![];
+        plaintext
     }
 
 }
