@@ -3,7 +3,7 @@ use aes::{
     cipher::{
         BlockEncrypt, BlockDecrypt, KeyInit,
         generic_array::{ 
-            GenericArray, typenum::U32, typenum::U16
+            GenericArray, typenum::U32
         }
     }
 };
@@ -13,8 +13,6 @@ use pbkdf2::{
     }
 };
 use rand::rngs::OsRng;
-
-type Block = GenericArray<u8, U16>;
 
 pub struct DbEncryption {
     cipher: Aes256
@@ -32,15 +30,15 @@ impl DbEncryption {
         let mut ciphertext: Vec<u8> = vec![];
         let b = [0u8; 16];
         let mut block = GenericArray::clone_from_slice(&b);
-        let iter = data.iter();
-        let count = 0usize;
+        let mut iter = data.iter();
+        let mut count = 0usize;
         loop {
             match iter.next() {
                 Some(byte) => {
                     block[count] = *byte;
                     if count == 15 {
                         self.cipher.encrypt_block(&mut block);
-                        ciphertext.push(block.as_slice().try_into().expect("invalid length!"));
+                        ciphertext.extend_from_slice(&block.as_slice());
                         block = GenericArray::clone_from_slice(&b);
                         count = 0;
                     } else {
@@ -52,24 +50,48 @@ impl DbEncryption {
         }
         if count != 0 {
             self.cipher.encrypt_block(&mut block);
-            ciphertext.push(block.as_slice().try_into().expect("invalid length!"));
+            ciphertext.extend_from_slice(&block.as_slice());
         }
         ciphertext
     }
 
     pub fn decrypt(&self, data: &[u8]) -> Vec<u8> {
         let mut plaintext: Vec<u8> = vec![];
+        let b = [0u8; 16];
+        let mut block = GenericArray::clone_from_slice(&b);
+        let mut iter = data.iter();
+        let mut count = 0usize;
+        loop {
+            match iter.next() {
+                Some(byte) => {
+                    block[count] = *byte;
+                    if count == 15 {
+                        self.cipher.decrypt_block(&mut block);
+                        plaintext.extend_from_slice(&block.as_slice());
+                        block = GenericArray::clone_from_slice(&b);
+                        count = 0;
+                    } else {
+                        count += 1;
+                    }
+                },
+                None => break
+            };
+        }
+        if count != 0 {
+            self.cipher.decrypt_block(&mut block);
+            plaintext.extend_from_slice(&block.as_slice());
+        }
         plaintext
     }
 
 }
 
 fn derive_key(key: &str) -> GenericArray<u8, U32> {
-    let mut derived_key: GenericArray<u8, U32>;
+    let derived_key: GenericArray<u8, U32>;
     let salt = SaltString::generate(&mut OsRng);
     derived_key = match Pbkdf2.hash_password(&key.as_bytes(), &salt) {
         Ok(result) => *GenericArray::from_slice(&result.hash.unwrap().as_bytes()[0..32]),
-        Err(msg) => panic!("failed to hash password string!")
+        Err(_msg) => panic!("failed to hash password string!")
     };
     derived_key
 }
