@@ -1,25 +1,21 @@
 use aes::{
-    Aes256,
     cipher::{
-        BlockEncrypt, BlockDecrypt, KeyInit,
-        generic_array::{ 
-            GenericArray, typenum::U32
-        }
-    }
+        generic_array::{typenum::U32, GenericArray},
+        BlockDecrypt, BlockEncrypt, KeyInit,
+    },
+    Aes256,
 };
 use pbkdf2::{
-    Pbkdf2, password_hash::{
-        SaltString, PasswordHasher
-    }
+    password_hash::{PasswordHasher, SaltString},
+    Pbkdf2,
 };
 use rand::rngs::OsRng;
 
 pub struct DbEncryption {
-    cipher: Aes256
+    cipher: Aes256,
 }
 
 impl DbEncryption {
-
     pub fn new(key: &str) -> DbEncryption {
         let key = derive_key(key);
         let cipher = Aes256::new(&key);
@@ -44,8 +40,8 @@ impl DbEncryption {
                     } else {
                         count += 1;
                     }
-                },
-                None => break
+                }
+                None => break,
             };
         }
         if count != 0 {
@@ -73,8 +69,8 @@ impl DbEncryption {
                     } else {
                         count += 1;
                     }
-                },
-                None => break
+                }
+                None => break,
             };
         }
         if count != 0 {
@@ -83,7 +79,6 @@ impl DbEncryption {
         }
         plaintext
     }
-
 }
 
 fn derive_key(key: &str) -> GenericArray<u8, U32> {
@@ -91,7 +86,7 @@ fn derive_key(key: &str) -> GenericArray<u8, U32> {
     let salt = SaltString::generate(&mut OsRng);
     derived_key = match Pbkdf2.hash_password(&key.as_bytes(), &salt) {
         Ok(result) => *GenericArray::from_slice(&result.hash.unwrap().as_bytes()[0..32]),
-        Err(_msg) => panic!("failed to hash password string!")
+        Err(_msg) => panic!("failed to hash password string!"),
     };
     derived_key
 }
